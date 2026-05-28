@@ -16,7 +16,7 @@ def test_f0_within_5hz_of_truth(freq: float) -> None:
     audio = make_sine(freq)
     result = estimate_f0(audio, SR)
     assert result is not None
-    assert abs(result - freq) < 25.0, f"Expected ~{freq} Hz, got {result:.1f} Hz"
+    assert abs(result - freq) < 5.0, f"Expected ~{freq} Hz, got {result:.1f} Hz"
 
 
 def test_silence_returns_none() -> None:
