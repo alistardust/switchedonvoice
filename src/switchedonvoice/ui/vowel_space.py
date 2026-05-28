@@ -15,21 +15,29 @@ Axes (standard vowel-chart orientation):
 """
 from __future__ import annotations
 from collections import deque
+from typing import TypedDict
 from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtCore import Qt
 
 _TRAIL_LEN = 60   # ~2 seconds of history at 30 Hz
 
+class _EllipseCentre(TypedDict):
+    """Schema for ellipse centre and radii."""
+    f1: float
+    f2: float
+    r_f1: float
+    r_f2: float
+
 # Reference ellipse centres and radii [Hz]
-_FEMALE = {"f1": 450.0, "f2": 1800.0, "r_f1": 200.0, "r_f2": 500.0}
-_MALE   = {"f1": 600.0, "f2": 1300.0, "r_f1": 200.0, "r_f2": 400.0}
+_FEMALE: _EllipseCentre = {"f1": 450.0, "f2": 1800.0, "r_f1": 200.0, "r_f2": 500.0}
+_MALE: _EllipseCentre   = {"f1": 600.0, "f2": 1300.0, "r_f1": 200.0, "r_f2": 400.0}
 
 _F2_MIN, _F2_MAX = 500.0, 3000.0
 _F1_MIN, _F1_MAX = 200.0, 900.0
 
 
-def _in_ellipse(f1: float, f2: float, centre: dict) -> bool:
+def _in_ellipse(f1: float, f2: float, centre: _EllipseCentre) -> bool:
     """Return True if (f1, f2) lies inside the ellipse defined by centre.
 
     Uses the proper ellipse equation: (dx/r_f1)² + (dy/r_f2)² ≤ 1
@@ -42,6 +50,12 @@ def _in_ellipse(f1: float, f2: float, centre: dict) -> bool:
 
 
 def _dot_color(f1: float, f2: float) -> QColor:
+    """Return dot colour based on (f1, f2) position relative to vowel ellipses.
+
+    Green  (60, 200, 100): within female ellipse
+    Red    (200, 60, 60):  within male ellipse
+    Yellow (220, 200, 60): between ellipses
+    """
     if _in_ellipse(f1, f2, _FEMALE):
         return QColor(60, 200, 100)    # green
     if _in_ellipse(f1, f2, _MALE):
@@ -75,7 +89,7 @@ class VowelSpaceWidget(QWidget):
         y = int((_F1_MAX - f1) / (_F1_MAX - _F1_MIN) * h)   # F1 axis inverted
         return x, y
 
-    def _ellipse_rect(self, centre: dict, w: int, h: int):
+    def _ellipse_rect(self, centre: _EllipseCentre, w: int, h: int) -> tuple[int, int, int, int]:
         cx, cy = self._hz_to_px(centre["f1"], centre["f2"], w, h)
         rx = int(centre["r_f2"] / (_F2_MAX - _F2_MIN) * w)
         ry = int(centre["r_f1"] / (_F1_MAX - _F1_MIN) * h)
