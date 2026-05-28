@@ -17,3 +17,8 @@ def test_red_warning_at_60_minutes() -> None:
 
 def test_red_warning_persists_after_60_minutes() -> None:
     assert should_warn(elapsed_secs=4000) == WarningLevel.RED
+
+
+def test_negative_elapsed_secs_raises() -> None:
+    with pytest.raises(ValueError):
+        should_warn(elapsed_secs=-1)
