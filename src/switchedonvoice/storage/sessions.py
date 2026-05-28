@@ -1,5 +1,6 @@
 """Session CRUD, streak calculation, and aggregate stats."""
 from __future__ import annotations
+import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -7,6 +8,25 @@ from typing import Any
 import json
 
 from switchedonvoice.storage.db import get_connection
+
+
+def _validate_session_stats(
+    duration_secs: float,
+    avg_f0: float,
+    f0_std_dev: float,
+    avg_f2: float,
+) -> None:
+    """Raise ValueError for non-finite or negative session statistics."""
+    for name, val in [
+        ("duration_secs", duration_secs),
+        ("avg_f0", avg_f0),
+        ("f0_std_dev", f0_std_dev),
+        ("avg_f2", avg_f2),
+    ]:
+        if not math.isfinite(val):
+            raise ValueError(f"{name} must be finite, got {val!r}")
+        if val < 0:
+            raise ValueError(f"{name} must be non-negative, got {val!r}")
 
 
 def create_session(db_path: Path) -> int:
@@ -34,15 +54,19 @@ def close_session(
     date_override: str | None = None,
 ) -> None:
     """Update session summary statistics on close."""
+    _validate_session_stats(duration_secs, avg_f0, f0_std_dev, avg_f2)
     con = get_connection(db_path)
     row_date = date_override or date.today().isoformat()
-    con.execute(
+    cur = con.execute(
         """UPDATE sessions
            SET date=?, duration_secs=?, avg_f0=?, f0_std_dev=?, avg_f2=?, milestone_flags_json=?
            WHERE id=?""",
         (row_date, duration_secs, avg_f0, f0_std_dev, avg_f2,
          json.dumps(milestone_flags), session_id),
     )
+    if cur.rowcount == 0:
+        con.close()
+        raise ValueError(f"Session {session_id} does not exist")
     con.commit()
     con.close()
 
@@ -50,10 +74,13 @@ def close_session(
 def update_session_milestones(db_path: Path, session_id: int, flags: dict[str, bool]) -> None:
     """Patch the milestone_flags_json on a session that has already been closed."""
     con = get_connection(db_path)
-    con.execute(
+    cur = con.execute(
         "UPDATE sessions SET milestone_flags_json=? WHERE id=?",
         (json.dumps(flags), session_id),
     )
+    if cur.rowcount == 0:
+        con.close()
+        raise ValueError(f"Session {session_id} does not exist")
     con.commit()
     con.close()
 

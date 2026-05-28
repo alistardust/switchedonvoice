@@ -13,6 +13,7 @@ from switchedonvoice.storage.sessions import (
     get_streak,
     get_all_sessions,
     get_history_stats,
+    update_session_milestones,
 )
 
 
@@ -149,3 +150,29 @@ def test_get_history_stats_streak_is_non_zero_when_session_today(db: Path) -> No
                   avg_f2=1900.0, milestone_flags={})
     stats = get_history_stats(db, baseline_f2=1600.0)
     assert stats.streak >= 1
+
+
+def test_update_session_milestones(db: Path) -> None:
+    sid = create_session(db)
+    close_session(db, sid, 60.0, 180.0, 20.0, 1700.0, {"flag1": True})
+    update_session_milestones(db, sid, {"flag1": False, "flag2": True})
+    sessions = get_all_sessions(db)
+    flags = json.loads(sessions[0]["milestone_flags_json"])
+    assert flags == {"flag1": False, "flag2": True}
+
+
+def test_close_session_raises_for_nonexistent_id(db: Path) -> None:
+    with pytest.raises(ValueError, match="does not exist"):
+        close_session(db, 999999, 60.0, 180.0, 20.0, 1700.0, {})
+
+
+def test_close_session_raises_for_nan_duration(db: Path) -> None:
+    sid = create_session(db)
+    with pytest.raises(ValueError, match="duration_secs"):
+        close_session(db, sid, float("nan"), 180.0, 20.0, 1700.0, {})
+
+
+def test_close_session_raises_for_negative_f0(db: Path) -> None:
+    sid = create_session(db)
+    with pytest.raises(ValueError, match="avg_f0"):
+        close_session(db, sid, 60.0, -1.0, 20.0, 1700.0, {})

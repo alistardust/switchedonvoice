@@ -34,3 +34,16 @@ def test_save_is_valid_json(settings_path: Path) -> None:
     import json
     data = json.loads(settings_path.read_text())
     assert "device_index" in data
+
+
+def test_save_creates_valid_file_on_write(settings_path: Path) -> None:
+    """save_settings produces a complete, readable file — not partial JSON."""
+    import json as _json
+    s = Settings(device_index=3, onboarding_complete=True, baseline_f0=185.0,
+                 baseline_f0_std_dev=22.0, baseline_f2=1800.0)
+    save_settings(settings_path, s)
+    # File must exist and be complete JSON (atomic write guarantee)
+    content = settings_path.read_text()
+    data = _json.loads(content)  # raises JSONDecodeError if partial
+    assert data["device_index"] == 3
+    assert data["onboarding_complete"] is True

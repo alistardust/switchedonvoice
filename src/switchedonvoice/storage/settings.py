@@ -1,6 +1,8 @@
 """Settings persistence via JSON."""
 from __future__ import annotations
 import json
+import os
+import tempfile
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
@@ -37,8 +39,23 @@ def load_settings(path: Path = _DEFAULT_SETTINGS_PATH) -> Settings:
 
 
 def save_settings(path: Path = _DEFAULT_SETTINGS_PATH, settings: Settings | None = None) -> None:
-    """Write settings to JSON file. Creates parent directories if absent."""
+    """Write settings to JSON file atomically (temp file + rename).
+
+    Args:
+        path: Path to settings.json. Parent directories are created if absent.
+        settings: Settings to write. Writes defaults if None.
+    """
     if settings is None:
         settings = Settings()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(asdict(settings), indent=2))
+    tmp_fd, tmp_path_str = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    tmp_path = Path(tmp_path_str)
+    try:
+        with os.fdopen(tmp_fd, "w") as f:
+            f.write(json.dumps(asdict(settings), indent=2))
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
