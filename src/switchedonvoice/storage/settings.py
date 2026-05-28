@@ -35,8 +35,8 @@ def load_settings(path: Path = _DEFAULT_SETTINGS_PATH) -> Settings:
             baseline_f0_std_dev=data.get("baseline_f0_std_dev"),
             baseline_f2=data.get("baseline_f2"),
             noise_floor_rms=data.get("noise_floor_rms"),
-            f0_target_min=float(data.get("f0_target_min", 185.0)),
-            f0_target_max=float(data.get("f0_target_max", 255.0)),
+            f0_target_min=float(data.get("f0_target_min") or 185.0),
+            f0_target_max=float(data.get("f0_target_max") or 255.0),
         )
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return Settings()

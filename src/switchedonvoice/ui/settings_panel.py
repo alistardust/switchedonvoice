@@ -57,6 +57,8 @@ class SettingsPanel(QWidget):
 
         # --- F0 target range ---
         f0_group = QGroupBox("F0 Target Range")
+        # F0 target values stored as float but displayed as integer Hz.
+        # Sub-Hz precision is acoustically negligible for voice training.
         self._f0_min_spin = QSpinBox()
         self._f0_min_spin.setRange(80, 400)
         self._f0_min_spin.setSuffix(" Hz")
@@ -101,7 +103,7 @@ class SettingsPanel(QWidget):
         self._device_combo.clear()
         try:
             devices = sd.query_devices()
-        except Exception as exc:  # noqa: BLE001
+        except (sd.PortAudioError, OSError) as exc:
             _logger.warning("Failed to query audio devices: %s", exc)
             self._device_combo.addItem("(no devices found)", userData=-1)
             return
@@ -110,7 +112,9 @@ class SettingsPanel(QWidget):
         select_row = 0
         for i, dev in enumerate(devices):
             if isinstance(dev, dict) and dev.get("max_input_channels", 0) > 0:
-                label = f"{dev['name']} (in: {dev['max_input_channels']}ch)"
+                name = dev.get("name", "Unknown Device")
+                channels = dev.get("max_input_channels", 0)
+                label = f"{name} (in: {channels}ch)"
                 self._device_combo.addItem(label, userData=dev.get("index", i))
                 if dev.get("index", i) == current_idx:
                     select_row = self._device_combo.count() - 1

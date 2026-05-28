@@ -40,6 +40,11 @@ class PitchMeterWidget(QWidget):
     """Vertical bar pitch meter with colour-coded zones."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize the pitch meter widget.
+
+        Args:
+            parent: Optional parent widget.
+        """
         super().__init__(parent)
         self.setMinimumSize(60, 250)
         self._f0: float | None = None
@@ -52,7 +57,11 @@ class PitchMeterWidget(QWidget):
         layout.addWidget(self._label)
 
     def set_f0(self, f0: float | None) -> None:
-        """Update the displayed F0 value, append to rolling contour, and repaint."""
+        """Update the displayed F0 value, append to rolling contour, and repaint.
+
+        Args:
+            f0: Current fundamental frequency in Hz, or None if unvoiced.
+        """
         self._f0 = f0
         self._contour.append(f0)
         if f0 is not None:
