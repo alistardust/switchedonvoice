@@ -22,6 +22,21 @@ class Settings:
     f0_target_max: float = 255.0
 
 
+def _validate_f0(value: object, default: float) -> float:
+    """Return a positive F0 value or the default if value is invalid.
+
+    Args:
+        value: Raw value from JSON (may be None, negative, or non-numeric).
+        default: Fallback default (Hz).
+
+    Returns:
+        Validated positive float F0 value.
+    """
+    if not isinstance(value, (int, float)):
+        return default
+    return float(value) if float(value) > 0 else default
+
+
 def load_settings(path: Path = _DEFAULT_SETTINGS_PATH) -> Settings:
     """Load settings from JSON file. Returns defaults if file is absent or corrupt."""
     if not path.exists():
@@ -35,8 +50,8 @@ def load_settings(path: Path = _DEFAULT_SETTINGS_PATH) -> Settings:
             baseline_f0_std_dev=data.get("baseline_f0_std_dev"),
             baseline_f2=data.get("baseline_f2"),
             noise_floor_rms=data.get("noise_floor_rms"),
-            f0_target_min=float(data.get("f0_target_min") or 185.0),
-            f0_target_max=float(data.get("f0_target_max") or 255.0),
+            f0_target_min=_validate_f0(data.get("f0_target_min"), 185.0),
+            f0_target_max=_validate_f0(data.get("f0_target_max"), 255.0),
         )
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return Settings()
