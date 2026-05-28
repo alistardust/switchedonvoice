@@ -44,6 +44,8 @@ class PitchMeterWidget(QWidget):
         self.setMinimumSize(60, 250)
         self._f0: float | None = None
         self._contour: deque[float | None] = deque(maxlen=_CONTOUR_HISTORY)
+        self._f0_target_min: float = 185.0
+        self._f0_target_max: float = 255.0
         self._label = QLabel("--- Hz", self)
         self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout = QVBoxLayout(self)
@@ -57,6 +59,24 @@ class PitchMeterWidget(QWidget):
             self._label.setText(f"{f0:.0f} Hz")
         else:
             self._label.setText("--- Hz")
+        self.update()
+
+    def set_f0_target_range(self, min_hz: float, max_hz: float) -> None:
+        """Override the F0 target zone boundaries and repaint.
+
+        Args:
+            min_hz: Lower bound of the green target zone (Hz).
+            max_hz: Upper bound of the green target zone (Hz).
+
+        Raises:
+            ValueError: If min_hz >= max_hz or either value is non-positive.
+        """
+        if min_hz >= max_hz:
+            raise ValueError(f"min_hz ({min_hz}) must be less than max_hz ({max_hz})")
+        if min_hz <= 0 or max_hz <= 0:
+            raise ValueError("F0 target range values must be positive")
+        self._f0_target_min = min_hz
+        self._f0_target_max = max_hz
         self.update()
 
     def paintEvent(self, _event: object) -> None:  # noqa: ANN001
