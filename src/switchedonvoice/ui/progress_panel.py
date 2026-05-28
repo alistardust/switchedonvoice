@@ -2,6 +2,7 @@
 """Progress panel: streak, milestone badges, weekly chart, and session history."""
 from __future__ import annotations
 import json
+import logging
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,8 @@ from PySide6.QtWidgets import (
 
 from switchedonvoice.gamification.milestones import MilestoneID
 from switchedonvoice.storage.sessions import get_all_sessions, get_streak
+
+_logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------- #
 # Constants
@@ -45,6 +48,30 @@ _COLOR_F0_LINE = QColor(60, 200, 100)   # green
 _COLOR_STD_LINE = QColor(230, 200, 60)  # yellow
 _COLOR_BG = QColor(20, 20, 30)
 _COLOR_GRID = QColor(60, 60, 80)
+
+_MAX_COORD: int = 10_000  # Qt coordinate safety bound
+_WEEK_LABEL_STRIDE: int = 2  # Show every Nth x-axis label to avoid crowding
+
+
+# --------------------------------------------------------------------------- #
+# Helper functions
+# --------------------------------------------------------------------------- #
+
+
+def _safe_int(val: float) -> int:
+    """Clamp a float coordinate to safe Qt integer bounds.
+
+    Prevents OverflowError when NaN or extreme values reach drawLine.
+
+    Args:
+        val: Float coordinate value.
+
+    Returns:
+        Clamped integer coordinate.
+    """
+    if not np.isfinite(val):
+        return 0
+    return max(-_MAX_COORD, min(_MAX_COORD, int(val)))
 
 
 # --------------------------------------------------------------------------- #
@@ -77,7 +104,15 @@ class WeeklyChartWidget(QWidget):
             weeks: ISO week labels (e.g., ["W01", "W02"]).
             f0_means: Mean F0 per week (Hz).
             f0_stds: Mean F0 std dev per week (Hz).
+
+        Raises:
+            ValueError: If input lists have mismatched lengths.
         """
+        if not (len(weeks) == len(f0_means) == len(f0_stds)):
+            raise ValueError(
+                f"Mismatched lengths: weeks={len(weeks)}, "
+                f"f0_means={len(f0_means)}, f0_stds={len(f0_stds)}"
+            )
         self._weeks = weeks
         self._f0_means = f0_means
         self._f0_stds = f0_stds
@@ -100,8 +135,13 @@ class WeeklyChartWidget(QWidget):
         chart_w = w - pad_left - pad_right
         chart_h = h - pad_top - pad_bottom
 
-        # Determine Y range from combined data
-        all_vals = self._f0_means + self._f0_stds
+        # Determine Y range from combined data (filter NaN/inf first)
+        all_vals_raw = self._f0_means + self._f0_stds
+        all_vals = [v for v in all_vals_raw if np.isfinite(v)]
+        if not all_vals:
+            painter.setPen(QPen(QColor(150, 150, 150), 1))
+            painter.drawText(10, h // 2, "Invalid data")
+            return
         y_min = max(0.0, min(all_vals) - 10.0)
         y_max = max(all_vals) + 10.0
         y_range = y_max - y_min or 1.0
@@ -115,7 +155,7 @@ class WeeklyChartWidget(QWidget):
         # Grid lines at y_min, midpoint, y_max
         painter.setPen(QPen(_COLOR_GRID, 1))
         for level in (y_min, (y_min + y_max) / 2, y_max):
-            y = int(y_pos(level))
+            y = _safe_int(y_pos(level))
             painter.drawLine(pad_left, y, w - pad_right, y)
 
         # Y-axis label
@@ -123,27 +163,33 @@ class WeeklyChartWidget(QWidget):
         painter.drawText(2, pad_top + 8, f"{y_max:.0f}")
         painter.drawText(2, h - pad_bottom - 4, f"{y_min:.0f}")
 
-        # F0 mean line (green)
+        # F0 mean line (green) - only draw segments with finite endpoints
         painter.setPen(QPen(_COLOR_F0_LINE, 2))
         for i in range(n - 1):
-            painter.drawLine(
-                int(x_pos(i)), int(y_pos(self._f0_means[i])),
-                int(x_pos(i + 1)), int(y_pos(self._f0_means[i + 1])),
-            )
+            if all(np.isfinite(v) for v in (self._f0_means[i], self._f0_means[i + 1])):
+                x1, x2 = x_pos(i), x_pos(i + 1)
+                y1_f0, y2_f0 = y_pos(self._f0_means[i]), y_pos(self._f0_means[i + 1])
+                painter.drawLine(
+                    _safe_int(x1), _safe_int(y1_f0),
+                    _safe_int(x2), _safe_int(y2_f0),
+                )
 
-        # F0 std dev line (yellow)
+        # F0 std dev line (yellow) - only draw segments with finite endpoints
         painter.setPen(QPen(_COLOR_STD_LINE, 2))
         for i in range(n - 1):
-            painter.drawLine(
-                int(x_pos(i)), int(y_pos(self._f0_stds[i])),
-                int(x_pos(i + 1)), int(y_pos(self._f0_stds[i + 1])),
-            )
+            if all(np.isfinite(v) for v in (self._f0_stds[i], self._f0_stds[i + 1])):
+                x1, x2 = x_pos(i), x_pos(i + 1)
+                y1_std, y2_std = y_pos(self._f0_stds[i]), y_pos(self._f0_stds[i + 1])
+                painter.drawLine(
+                    _safe_int(x1), _safe_int(y1_std),
+                    _safe_int(x2), _safe_int(y2_std),
+                )
 
-        # X-axis week labels (every other week to avoid crowding)
+        # X-axis week labels (every Nth week to avoid crowding)
         painter.setPen(QPen(QColor(160, 160, 160), 1))
         for i, label in enumerate(self._weeks):
-            if i % 2 == 0:
-                painter.drawText(int(x_pos(i)) - 8, h - 4, label)
+            if i % _WEEK_LABEL_STRIDE == 0:
+                painter.drawText(_safe_int(x_pos(i)) - 8, h - 4, label)
 
 
 # --------------------------------------------------------------------------- #
@@ -190,6 +236,7 @@ class ProgressPanel(QWidget):
         self._history_table = QTableWidget()
         self._history_table.setColumnCount(len(_TABLE_COLUMNS))
         self._history_table.setHorizontalHeaderLabels(list(_TABLE_COLUMNS))
+        # NoEditTriggers prevents all editing, no need for per-item setFlags
         self._history_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._history_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._history_table.horizontalHeader().setStretchLastSection(True)
@@ -232,7 +279,11 @@ class ProgressPanel(QWidget):
             flags_raw = s.get("milestone_flags_json") or "{}"
             try:
                 flags: dict[str, bool] = json.loads(flags_raw)
-            except (json.JSONDecodeError, TypeError):
+            except (json.JSONDecodeError, TypeError) as exc:
+                _logger.warning(
+                    "Failed to parse milestone_flags_json for session %r: %s",
+                    s.get("id"), exc
+                )
                 flags = {}
             for mid_val, earned in flags.items():
                 if earned and mid_val not in earned_dates:
@@ -263,7 +314,8 @@ class ProgressPanel(QWidget):
                 continue
             try:
                 d = date.fromisoformat(date_str)
-            except ValueError:
+            except ValueError as exc:
+                _logger.warning("Skipping session with invalid date %r: %s", date_str, exc)
                 continue
             iso = d.isocalendar()
             key = (iso.year, iso.week)
@@ -294,7 +346,7 @@ class ProgressPanel(QWidget):
                 continue
             week_labels.append(f"W{week:02d}")
             f0_means.append(float(np.mean(f0_vals)))
-            f0_stds.append(float(np.mean(std_vals)) if std_vals else 0.0)
+            f0_stds.append(float(np.mean(std_vals)) if std_vals else float("nan"))
 
         self._chart.set_data(week_labels, f0_means, f0_stds)
 
@@ -311,5 +363,4 @@ class ProgressPanel(QWidget):
 
             for col_idx, text in enumerate((date_str, dur_min, avg_f0, f0_std, avg_f2)):
                 item = QTableWidgetItem(text)
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self._history_table.setItem(row_idx, col_idx, item)
