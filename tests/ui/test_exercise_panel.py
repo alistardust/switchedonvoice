@@ -49,3 +49,13 @@ def test_timer_completion_resets_to_start(qtbot, timed_card) -> None:
     assert "30" in timed_card.countdown_label.text()
     # Completion message MUST be visible after natural timer expiry
     assert timed_card.completion_label.isVisible()
+
+
+def test_rapid_start_stop_start_does_not_corrupt_state(qtbot, timed_card) -> None:
+    """Rapid Start→Stop→Start should not restart the timer from scratch mid-countdown."""
+    qtbot.mouseClick(timed_card.start_button, Qt.LeftButton)  # Start
+    qtbot.mouseClick(timed_card.start_button, Qt.LeftButton)  # Stop (manual)
+    qtbot.mouseClick(timed_card.start_button, Qt.LeftButton)  # Start again
+    # After a clean start, button should be "Stop" and timer running
+    assert timed_card.start_button.text() == "Stop"
+    assert timed_card._timer.isActive()

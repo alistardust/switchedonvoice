@@ -71,7 +71,12 @@ class ExerciseCard(QFrame):
     def __init__(self, exercise: ExerciseData, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self._duration: int | None = _DURATIONS.get(exercise["name"])
+        if exercise["name"] not in _DURATIONS:
+            raise KeyError(
+                f"Exercise '{exercise['name']}' has no entry in _DURATIONS; "
+                "add it before creating an ExerciseCard."
+            )
+        self._duration: int | None = _DURATIONS[exercise["name"]]
         self._remaining: int = self._duration or 0
 
         # Title
@@ -131,7 +136,7 @@ class ExerciseCard(QFrame):
             self.countdown_label.setText(self._countdown_text())
             self.completion_label.setVisible(False)
             self.start_button.setText("Stop")
-            if self._duration is not None:
+            if self._duration is not None and not self._timer.isActive():
                 self._timer.start()
         else:
             self._timer.stop()
