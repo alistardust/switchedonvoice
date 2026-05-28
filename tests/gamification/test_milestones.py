@@ -30,7 +30,7 @@ def make_history(total_sessions: int = 1, streak: int = 1,
         f0_above_185_sessions=f0_above_185_sessions,
         baseline_f2=baseline_f2,
         total_practice_secs=total_practice_secs,
-        already_earned=already_earned or set(),
+        already_earned=frozenset(already_earned) if already_earned else frozenset(),
     )
 
 
@@ -164,3 +164,30 @@ def test_f0_floor_lifter_not_re_awarded_when_already_earned() -> None:
         make_history(already_earned={MilestoneID.F0_FLOOR_LIFTER.value}),
     )
     assert MilestoneID.F0_FLOOR_LIFTER not in earned_second
+
+
+def test_vowel_space_shift_not_earned_when_baseline_f2_is_zero() -> None:
+    """Even with streak >= 3, cannot earn if baseline_f2 = 0."""
+    earned = evaluate_milestones(
+        make_session(avg_f2=1700.0),
+        make_history(f2_above_baseline_streak=3, baseline_f2=0.0),
+    )
+    assert MilestoneID.VOWEL_SPACE_SHIFT not in earned
+
+
+def test_first_10_minutes_exact_600s_boundary() -> None:
+    """Exactly 600.0 seconds must earn (>= 600, not > 600)."""
+    earned = evaluate_milestones(
+        make_session(duration_secs=100.0),
+        make_history(total_practice_secs=600.0),
+    )
+    assert MilestoneID.FIRST_TEN_MINUTES in earned
+
+
+def test_feminine_frequency_earned_without_current_session_contributing() -> None:
+    """Can earn with 3+ historical sessions, even if current session is below 185 Hz."""
+    earned = evaluate_milestones(
+        make_session(avg_f0=180.0),
+        make_history(f0_above_185_sessions=3),
+    )
+    assert MilestoneID.FEMININE_FREQUENCY in earned

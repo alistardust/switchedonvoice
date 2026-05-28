@@ -38,7 +38,7 @@ class HistoryStats:
     f0_above_165_sessions: int       # cumulative sessions with avg_f0 > 165 Hz
     f0_above_185_sessions: int       # cumulative sessions with avg_f0 > 185 Hz
     baseline_f2: float
-    already_earned: set[str] = field(default_factory=set)
+    already_earned: frozenset[str] = field(default_factory=frozenset)
 
 
 _F2_SHIFT_THRESHOLD = 1.20   # 20% above baseline
