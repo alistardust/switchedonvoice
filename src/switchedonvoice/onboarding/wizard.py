@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from switchedonvoice.storage.settings import Settings, load_settings, save_settings
+from switchedonvoice.ui.pitch_meter import PitchMeterWidget
 
 _logger = logging.getLogger(__name__)
 
@@ -176,6 +177,8 @@ class _BaselineRecordPage(QWizardPage):
         self._progress.setRange(0, _BASELINE_DURATION_SECS)
         self._progress.setValue(0)
 
+        self._pitch_meter = PitchMeterWidget()
+
         self._status = QLabel("Click 'Start Recording' when ready.")
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -196,6 +199,7 @@ class _BaselineRecordPage(QWizardPage):
         layout = QVBoxLayout(self)
         layout.addWidget(self._instructions)
         layout.addWidget(self._progress)
+        layout.addWidget(self._pitch_meter)
         layout.addWidget(self._status)
         layout.addWidget(self._record_btn)
 
