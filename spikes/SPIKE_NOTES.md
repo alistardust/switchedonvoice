@@ -96,6 +96,10 @@ All three orders pass the ±100 Hz F2 gate. Order 14 is chosen because:
 
 **This order is canonical for production Task 7.**
 
+**Known limitation — F1 accuracy for close vowels:** /i/ and /u/ (ref F1 = 300 Hz) show a consistent ~27% F1 overshoot (estimated ~380–395 Hz) across all LPC orders. This is a synthetic-signal artefact: with a two-pole resonator and a 120 Hz pulse train, higher-order LPC poles absorb harmonic residual near the narrow 300 Hz resonance. F2 (which drives left-right position on the vowel chart) is unaffected.
+
+Real-speech validation (plan Step 4 of Task 2) was **not performed** — no recording was available. Before production Task 7 is shipped, validate F1 accuracy on a real /i/ or /u/ vowel. If F1 error on real speech exceeds ±200 Hz, consider LPC order 16 or 18 for the final production value.
+
 ---
 
 ## Spike 3 — Vowel space widget
@@ -157,6 +161,8 @@ Pipeline latency over 100 trials:
 ### Assessment
 
 **Gate: ✅ MET** — 95th percentile 2.89 ms is well under the 100 ms threshold.
+
+**Note:** `resample_poly` (44.1 → 16 kHz downsampling) is **excluded** from the timed loop above — it was computed once outside the trials. In production, downsampling runs on every buffer. Cost on this machine: median ~1 ms, 95th ~1.4 ms. True steady-state 95th percentile including downsampling is approximately **4 ms**, not 2.9 ms. The gate remains comfortably met.
 
 The 613 ms max is an outlier on trial 1 caused by OS page-fault / Python
 module cache warmup on first execution. It is not representative of steady-state

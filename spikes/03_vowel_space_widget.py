@@ -44,8 +44,8 @@ class VowelSpaceWidget(QWidget):
         w, h = self.width(), self.height()
         pad = 30
         x = int(pad + (f2 - F2_RANGE[0]) / (F2_RANGE[1] - F2_RANGE[0]) * (w - 2 * pad))
-        # F1 axis is inverted (higher F1 = lower formant frequency = bottom)
-        y = int(pad + (1 - (f1 - F1_RANGE[0]) / (F1_RANGE[1] - F1_RANGE[0])) * (h - 2 * pad))
+        # Standard phonetics: low F1 (close vowels /i/ /u/) at top, high F1 (/a/) at bottom
+        y = int(pad + (f1 - F1_RANGE[0]) / (F1_RANGE[1] - F1_RANGE[0]) * (h - 2 * pad))
         return x, y
 
     def paintEvent(self, _event: object) -> None:  # noqa: ANN001
