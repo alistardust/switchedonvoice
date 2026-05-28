@@ -1,0 +1,1 @@
+"""Cepstral Peak Prominence computation."""

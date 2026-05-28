@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "switchedonvoice"
+version = "0.1.0"
+description = "Open source voice feminization training tool"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.6",
+    "sounddevice>=0.4",
+    "pyworld>=0.3",
+    "librosa>=0.10",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "structlog>=24",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pytest-qt>=4",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/switchedonvoice"]
+
+[tool.ruff]
+line-length = 88
+select = ["E","W","F","I","N","B","C4","UP","S","ANN"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
