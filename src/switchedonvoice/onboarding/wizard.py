@@ -133,6 +133,8 @@ class _AmbientCalPage(QWizardPage):
 
     def _start(self) -> None:
         """Begin ambient calibration countdown."""
+        if self._timer.isActive():
+            return
         self._start_btn.setEnabled(False)
         self._elapsed = 0
         self._timer.start()
@@ -156,6 +158,11 @@ class _AmbientCalPage(QWizardPage):
     def noise_floor_rms(self) -> float | None:
         """Return captured noise floor RMS, or None if not yet calibrated."""
         return self._noise_floor
+
+    def cleanupPage(self) -> None:
+        """Stop timer and reset state when navigating away from this page."""
+        self._timer.stop()
+        super().cleanupPage()
 
 
 class _BaselineRecordPage(QWizardPage):
@@ -205,6 +212,8 @@ class _BaselineRecordPage(QWizardPage):
 
     def _start(self) -> None:
         """Begin baseline recording countdown."""
+        if self._timer.isActive():
+            return
         self._record_btn.setEnabled(False)
         self._elapsed = 0
         self._timer.start()
@@ -237,6 +246,11 @@ class _BaselineRecordPage(QWizardPage):
             self._baseline_f2,
             self._baseline_f2_std,
         )
+
+    def cleanupPage(self) -> None:
+        """Stop timer and reset state when navigating away from this page."""
+        self._timer.stop()
+        super().cleanupPage()
 
 
 class _DonePage(QWizardPage):
@@ -304,7 +318,11 @@ class OnboardingWizard(QWizard):
         Note: wizard_complete is emitted before super().accept() so that
         connected slots receive it before the window is hidden.
         """
-        self._persist_results()
+        try:
+            self._persist_results()
+        except Exception as exc:
+            _logger.error("Failed to save onboarding settings: %s", exc, exc_info=True)
+            return  # leave wizard open; user can retry
         self.wizard_complete.emit()
         super().accept()
 
