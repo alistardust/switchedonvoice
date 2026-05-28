@@ -1,5 +1,6 @@
 """Top-level application window."""
 from __future__ import annotations
+import json
 import logging
 import time
 from pathlib import Path
@@ -145,14 +146,27 @@ class MainWindow(QMainWindow):
             baseline_f2 = self._settings.baseline_f2 or 1400.0
             agg = get_history_stats(_DB_PATH, baseline_f2=baseline_f2)
             all_sessions = get_all_sessions(_DB_PATH)
+            
+            already_earned: set[str] = set()
+            for s in all_sessions:
+                if s.get("id") == self._session_id:
+                    continue
+                flags_json = s.get("milestone_flags_json") or "{}"
+                try:
+                    flags: dict[str, bool] = json.loads(flags_json)
+                    already_earned.update(k for k, v in flags.items() if v)
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+
             history = HistoryStats(
                 total_sessions=len(all_sessions),
                 streak=streak,
                 total_practice_secs=agg.total_practice_secs,
                 f2_above_baseline_streak=agg.f2_above_baseline_streak,
                 f0_above_165_sessions=agg.f0_above_165_sessions,
-                f0_above_185_sessions=agg.f0_above_185_sessions,
+                f0_above_185_sessions=max(0, agg.f0_above_185_sessions - (1 if avg_f0 > 185.0 else 0)),
                 baseline_f2=baseline_f2,
+                already_earned=frozenset(already_earned),
             )
             earned = evaluate_milestones(session_stats, history)
             # Always call update_session_milestones — back-fills flags even if none were earned
