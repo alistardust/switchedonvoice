@@ -79,6 +79,34 @@ class PitchMeterWidget(QWidget):
         self._f0_target_max = max_hz
         self.update()
 
+    def _zone_color(self, f0: float) -> QColor:
+        """Return zone color using the current F0 target range.
+
+        Zones:
+          < 120 Hz              : deep red
+          120 – target_min      : red / yellow gradient split at midpoint
+          target_min – target_max : green (feminine target)
+          > target_max          : blue (head voice)
+
+        Args:
+            f0: F0 value in Hz.
+
+        Returns:
+            QColor for the zone.
+        """
+        mid = (120.0 + self._f0_target_min) / 2.0
+        dynamic_zones: list[tuple[float, float, QColor]] = [
+            (0.0, 120.0, QColor(120, 0, 0)),
+            (120.0, mid, QColor(200, 60, 60)),
+            (mid, self._f0_target_min, QColor(220, 200, 60)),
+            (self._f0_target_min, self._f0_target_max, QColor(60, 200, 100)),
+            (self._f0_target_max, 1200.0, QColor(80, 160, 255)),
+        ]
+        for low, high, color in dynamic_zones:
+            if low <= f0 < high:
+                return color
+        return QColor(80, 160, 255)
+
     def paintEvent(self, _event: object) -> None:  # noqa: ANN001
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -92,7 +120,7 @@ class PitchMeterWidget(QWidget):
         clamped = max(_F0_MIN, min(self._f0, _F0_MAX))
         ratio = (clamped - _F0_MIN) / (_F0_MAX - _F0_MIN)
         fill_h = int(ratio * bar_h)
-        color = f0_zone_color(self._f0)
+        color = self._zone_color(self._f0)
         painter.fillRect(0, bar_h - fill_h, w, fill_h, color)
 
         # Rolling F0 contour — last ~10 seconds drawn as a white line above the bar

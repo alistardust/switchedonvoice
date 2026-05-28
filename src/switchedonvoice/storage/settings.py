@@ -38,7 +38,7 @@ def load_settings(path: Path = _DEFAULT_SETTINGS_PATH) -> Settings:
             f0_target_min=float(data.get("f0_target_min", 185.0)),
             f0_target_max=float(data.get("f0_target_max", 255.0)),
         )
-    except (json.JSONDecodeError, KeyError, TypeError):
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         return Settings()
 
 
