@@ -17,6 +17,7 @@ class Settings:
     baseline_f0: float | None = None
     baseline_f0_std_dev: float | None = None
     baseline_f2: float | None = None
+    baseline_f2_std_dev: float | None = None
     noise_floor_rms: float | None = None
     f0_target_min: float = 185.0
     f0_target_max: float = 255.0
@@ -49,6 +50,7 @@ def load_settings(path: Path = _DEFAULT_SETTINGS_PATH) -> Settings:
             baseline_f0=data.get("baseline_f0"),
             baseline_f0_std_dev=data.get("baseline_f0_std_dev"),
             baseline_f2=data.get("baseline_f2"),
+            baseline_f2_std_dev=data.get("baseline_f2_std_dev"),
             noise_floor_rms=data.get("noise_floor_rms"),
             f0_target_min=_validate_f0(data.get("f0_target_min"), 185.0),
             f0_target_max=_validate_f0(data.get("f0_target_max"), 255.0),
