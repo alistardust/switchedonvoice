@@ -7,8 +7,12 @@ Real-time voice feminization training — pitch, resonance, and gamification.
 - A microphone
 
 ## Install
+```bash
 pip install uv
 uv pip install -e ".[dev]"
+```
 
 ## Run
+```bash
 python run.py
+```
