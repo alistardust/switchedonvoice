@@ -10,7 +10,7 @@ QPainter-based line plot of the magnitude spectrum.
 from __future__ import annotations
 import numpy as np
 from PySide6.QtWidgets import QWidget, QSizePolicy
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPen, QPaintEvent
 from PySide6.QtCore import QPointF
 
 _DB_MIN = -90.0
@@ -40,12 +40,22 @@ class SpectrumWidget(QWidget):
         Args:
             freqs: Frequency bins in Hz (float32 array, monotonically increasing).
             db:    Magnitude in dBFS (float32 array, same length as freqs).
+
+        Raises:
+            ValueError: If freqs and db have different lengths.
+
+        Note:
+            Must be called from the GUI thread.
         """
-        self._freqs = freqs
-        self._db = db
+        if len(freqs) != len(db):
+            raise ValueError(
+                f"freqs and db must have the same length: {len(freqs)} != {len(db)}"
+            )
+        self._freqs = np.nan_to_num(freqs, nan=0.0, posinf=_FREQ_MAX_HZ, neginf=0.0)
+        self._db = np.nan_to_num(db, nan=_DB_MIN, posinf=_DB_MAX, neginf=_DB_MIN)
         self.update()
 
-    def paintEvent(self, _event: object) -> None:  # noqa: ANN001
+    def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
@@ -68,7 +78,7 @@ class SpectrumWidget(QWidget):
         if len(freqs) < 2:
             return
 
-        # Build polyline
+        # Guard against degenerate input where all visible frequencies are ≤ 0
         f_max = freqs[-1]
         if f_max <= 0:
             return
