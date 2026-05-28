@@ -1,1 +1,94 @@
-"""Colour-coded vertical pitch meter widget."""
+"""Pitch meter widget.
+
+Displays current F0 as a colour-coded vertical bar.
+Zones:
+  < 120 Hz : deep red     (very low masculine range)
+  120–164  : red          (masculine range)
+  165–184  : yellow       (transitional)
+  185–255  : green        (feminine target range)
+  > 255    : blue         (head voice — valid training territory, not a warning)
+"""
+from __future__ import annotations
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPainter, QFont, QPen
+from collections import deque
+
+_CONTOUR_HISTORY = 300  # ~10 seconds at 30 Hz
+
+
+_ZONES: list[tuple[float, float, QColor]] = [
+    (0.0, 120.0, QColor(120, 0, 0)),
+    (120.0, 165.0, QColor(200, 60, 60)),
+    (165.0, 185.0, QColor(220, 200, 60)),
+    (185.0, 256.0, QColor(60, 200, 100)),
+    (256.0, 1200.0, QColor(80, 160, 255)),
+]
+_F0_MIN = 80.0
+_F0_MAX = 500.0
+
+
+def f0_zone_color(f0: float) -> QColor:
+    """Return the display colour for a given F0 value."""
+    for low, high, color in _ZONES:
+        if low <= f0 < high:
+            return color
+    return _ZONES[-1][2]
+
+
+class PitchMeterWidget(QWidget):
+    """Vertical bar pitch meter with colour-coded zones."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setMinimumSize(60, 250)
+        self._f0: float | None = None
+        self._contour: deque[float | None] = deque(maxlen=_CONTOUR_HISTORY)
+        self._label = QLabel("--- Hz", self)
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self._label)
+
+    def set_f0(self, f0: float | None) -> None:
+        """Update the displayed F0 value, append to rolling contour, and repaint."""
+        self._f0 = f0
+        self._contour.append(f0)
+        if f0 is not None:
+            self._label.setText(f"{f0:.0f} Hz")
+        else:
+            self._label.setText("--- Hz")
+        self.update()
+
+    def paintEvent(self, _event: object) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        bar_h = h - 30  # reserve space for label
+        painter.fillRect(0, 0, w, bar_h, QColor(30, 30, 40))
+
+        if self._f0 is None:
+            return
+
+        clamped = max(_F0_MIN, min(self._f0, _F0_MAX))
+        ratio = (clamped - _F0_MIN) / (_F0_MAX - _F0_MIN)
+        fill_h = int(ratio * bar_h)
+        color = f0_zone_color(self._f0)
+        painter.fillRect(0, bar_h - fill_h, w, fill_h, color)
+
+        # Rolling F0 contour — last ~10 seconds drawn as a white line above the bar
+        contour_points = []
+        history = list(self._contour)
+        n = len(history)
+        if n > 1:
+            for i, val in enumerate(history):
+                if val is not None:
+                    x = int(i / (n - 1) * w)
+                    c = max(_F0_MIN, min(val, _F0_MAX))
+                    r = (c - _F0_MIN) / (_F0_MAX - _F0_MIN)
+                    y = int(bar_h - r * bar_h)
+                    contour_points.append((x, y))
+            if len(contour_points) > 1:
+                pen = QPen(QColor(255, 255, 255, 200), 1)
+                painter.setPen(pen)
+                for i in range(len(contour_points) - 1):
+                    painter.drawLine(*contour_points[i], *contour_points[i + 1])
