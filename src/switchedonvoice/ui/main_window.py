@@ -1,5 +1,6 @@
 """Top-level application window."""
 from __future__ import annotations
+import logging
 import time
 from pathlib import Path
 from PySide6.QtWidgets import QMainWindow, QTabWidget, QStatusBar, QLabel
@@ -21,6 +22,8 @@ _DB_PATH = Path.home() / ".switchedonvoice" / "data.db"
 _SETTINGS_PATH = Path.home() / ".switchedonvoice" / "settings.json"
 _TIMER_INTERVAL_MS = 33  # ~30 Hz
 _FRAME_DECIMATE_RATE = 5  # store every 5th analysis frame (~6 Hz at 30 Hz analysis)
+
+_logger = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -74,7 +77,8 @@ class MainWindow(QMainWindow):
         while not self._capture.results.empty():
             try:
                 result = self._capture.results.get_nowait()
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                _logger.debug("Queue drain interrupted: %s", exc)
                 break
             self._analysis_panel.update_result(result)
 
@@ -89,8 +93,11 @@ class MainWindow(QMainWindow):
                 f1 = result.formants[0] if len(result.formants) >= 1 else None
                 f2 = result.formants[1] if len(result.formants) >= 2 else None
                 elapsed_ms = int((time.monotonic() - self._session_start) * 1000)
-                add_frame(_DB_PATH, self._session_id, elapsed_ms,
-                          result.f0, f1, f2, result.cpp)
+                try:
+                    add_frame(_DB_PATH, self._session_id, elapsed_ms,
+                              result.f0, f1, f2, result.cpp)
+                except Exception as exc:
+                    _logger.error("Failed to persist frame: %s", exc, exc_info=True)
 
         # Vocal health check
         elapsed = time.monotonic() - self._session_start
@@ -106,8 +113,13 @@ class MainWindow(QMainWindow):
         self._capture.stop()
         self._settings.device_index = device_index
         save_settings(_SETTINGS_PATH, self._settings)
-        self._capture = AudioCapture(device_index=device_index)
-        self._capture.start()
+        try:
+            self._capture = AudioCapture(device_index=device_index)
+            self._capture.start()
+        except Exception as exc:
+            _logger.error("Failed to start AudioCapture on device %s: %s", device_index, exc, exc_info=True)
+            self._capture = AudioCapture(device_index=None)
+            self._capture.start()
 
     def closeEvent(self, event: object) -> None:  # noqa: ANN001
         self._timer.stop()
@@ -122,30 +134,33 @@ class MainWindow(QMainWindow):
         # to the DB. Only AFTER that do we query get_history_stats() so the current
         # session's contribution is included in milestone evaluation.
         # The session is initially closed with empty flags; we update them below.
-        close_session(_DB_PATH, self._session_id, duration, avg_f0, f0_std, avg_f2,
-                      milestone_flags={})
+        try:
+            close_session(_DB_PATH, self._session_id, duration, avg_f0, f0_std, avg_f2,
+                          milestone_flags={})
 
-        # Now query history — current session is included
-        session_stats = SessionStats(avg_f0=avg_f0, f0_std_dev=f0_std,
-                                     avg_f2=avg_f2, duration_secs=duration)
-        streak = get_streak(_DB_PATH)
-        baseline_f2 = self._settings.baseline_f2 or 1400.0
-        agg = get_history_stats(_DB_PATH, baseline_f2=baseline_f2)
-        all_sessions = get_all_sessions(_DB_PATH)
-        history = HistoryStats(
-            total_sessions=len(all_sessions),
-            streak=streak,
-            total_practice_secs=agg.total_practice_secs,
-            f2_above_baseline_streak=agg.f2_above_baseline_streak,
-            f0_above_165_sessions=agg.f0_above_165_sessions,
-            f0_above_185_sessions=agg.f0_above_185_sessions,
-            baseline_f2=baseline_f2,
-        )
-        earned = evaluate_milestones(session_stats, history)
-        # Always call update_session_milestones — back-fills flags even if none were earned
-        # (empty dict is correct; it replaces the placeholder '{}' set by close_session above)
-        flags = {m.value: True for m in earned}
-        update_session_milestones(_DB_PATH, self._session_id, flags)
+            # Now query history — current session is included
+            session_stats = SessionStats(avg_f0=avg_f0, f0_std_dev=f0_std,
+                                         avg_f2=avg_f2, duration_secs=duration)
+            streak = get_streak(_DB_PATH)
+            baseline_f2 = self._settings.baseline_f2 or 1400.0
+            agg = get_history_stats(_DB_PATH, baseline_f2=baseline_f2)
+            all_sessions = get_all_sessions(_DB_PATH)
+            history = HistoryStats(
+                total_sessions=len(all_sessions),
+                streak=streak,
+                total_practice_secs=agg.total_practice_secs,
+                f2_above_baseline_streak=agg.f2_above_baseline_streak,
+                f0_above_165_sessions=agg.f0_above_165_sessions,
+                f0_above_185_sessions=agg.f0_above_185_sessions,
+                baseline_f2=baseline_f2,
+            )
+            earned = evaluate_milestones(session_stats, history)
+            # Always call update_session_milestones — back-fills flags even if none were earned
+            # (empty dict is correct; it replaces the placeholder '{}' set by close_session above)
+            flags = {m.value: True for m in earned}
+            update_session_milestones(_DB_PATH, self._session_id, flags)
+        except Exception as exc:
+            _logger.error("Failed to persist session on close: %s", exc, exc_info=True)
 
         self._progress_panel.refresh()
         super().closeEvent(event)  # type: ignore[arg-type]
