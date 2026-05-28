@@ -29,7 +29,7 @@ def compute_cpp(audio: np.ndarray, sample_rate: int) -> float | None:
     # Power spectrum → log → IFFT = cepstrum
     spectrum = np.fft.rfft(audio.astype(np.float64))
     log_power = np.log(np.abs(spectrum) ** 2 + 1e-12)
-    cepstrum = np.fft.irfft(log_power).real
+    cepstrum = np.fft.irfft(log_power, n=len(audio)).real
 
     # Quefrency axis (in ms)
     n_samples = len(cepstrum)

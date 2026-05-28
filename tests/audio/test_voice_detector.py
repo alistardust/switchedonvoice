@@ -36,3 +36,7 @@ def test_noise_returns_false() -> None:
 def test_low_amplitude_sine_returns_false() -> None:
     # Below energy threshold
     assert is_voiced(make_sine(200, amplitude=0.001)) is False
+
+
+def test_empty_frame_returns_false() -> None:
+    assert is_voiced(np.array([], dtype=np.float32)) is False

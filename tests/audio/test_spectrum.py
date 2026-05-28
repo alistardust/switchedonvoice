@@ -26,4 +26,4 @@ def test_sine_peak_at_correct_bin() -> None:
 def test_silence_has_near_zero_magnitude() -> None:
     silence = np.zeros(2048, dtype=np.float32)
     _, magnitudes = compute_spectrum(silence, SR)
-    assert np.max(magnitudes) < 1e-9
+    assert np.max(magnitudes) < -100.0   # well below any voiced signal
