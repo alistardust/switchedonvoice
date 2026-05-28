@@ -33,6 +33,16 @@ _logger = logging.getLogger(__name__)
 _AMBIENT_DURATION_SECS: int = 10
 _BASELINE_DURATION_SECS: int = 30
 
+_RAINBOW_PASSAGE: str = (
+    "When the sunlight strikes raindrops in the air, they act as a prism and form a rainbow. "
+    "The rainbow is a division of white light into many beautiful colours. "
+    "These take the shape of a long round arch, with its path high above, and its two ends "
+    "apparently beyond the horizon. There is, according to legend, a pot of gold at the end "
+    "of the rainbow. The shape of a rainbow can vary from a barely visible arc to a magnificent arch. "
+    "According to the scientists, a person can never actually reach the end of a rainbow. "
+    "The sky and the ground would have to be level, and the observer would have to remain stationary."
+)
+
 
 # --------------------------------------------------------------------------- #
 # Pages
@@ -180,6 +190,13 @@ class _BaselineRecordPage(QWizardPage):
         )
         self._instructions.setWordWrap(True)
 
+        self._passage_header = QLabel("Read the following passage aloud:")
+        self._passage_header.setStyleSheet("font-weight: bold; margin-top: 12px;")
+
+        self._passage = QLabel(_RAINBOW_PASSAGE)
+        self._passage.setWordWrap(True)
+        self._passage.setStyleSheet("font-style: italic; color: #666666; padding: 8px;")
+
         self._progress = QProgressBar()
         self._progress.setRange(0, _BASELINE_DURATION_SECS)
         self._progress.setValue(0)
@@ -205,6 +222,8 @@ class _BaselineRecordPage(QWizardPage):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._instructions)
+        layout.addWidget(self._passage_header)
+        layout.addWidget(self._passage)
         layout.addWidget(self._progress)
         layout.addWidget(self._pitch_meter)
         layout.addWidget(self._status)
