@@ -25,4 +25,4 @@ def estimate_f0(audio: np.ndarray, sample_rate: int, frame_period_ms: float = 10
     voiced = f0_refined[f0_refined > 0]
     if len(voiced) == 0:
         return None
-    return float(np.median(voiced))
+    return float(voiced[-1])
