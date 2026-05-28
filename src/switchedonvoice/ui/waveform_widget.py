@@ -10,6 +10,10 @@ from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QPaintEvent, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+_SAMPLE_RATE_HZ = 44_100
+_WINDOW_DURATION_S = 0.200
+_MAX_SAMPLES = int(_SAMPLE_RATE_HZ * _WINDOW_DURATION_S)  # 8820 samples ≈ 200 ms
+
 
 class WaveformWidget(QWidget):
     """Scrolling time-domain waveform display (200 ms window, fixed 80 px height)."""
@@ -33,7 +37,7 @@ class WaveformWidget(QWidget):
         Args:
             samples: Raw audio samples (float32, normalised to ±1.0).
         """
-        self._samples = samples[-4096:] if len(samples) > 4096 else samples
+        self._samples = samples[-_MAX_SAMPLES:] if len(samples) > _MAX_SAMPLES else samples
         self.update()
 
     def paintEvent(self, _event: QPaintEvent) -> None:
