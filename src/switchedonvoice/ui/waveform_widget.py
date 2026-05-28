@@ -49,7 +49,11 @@ class WaveformWidget(QWidget):
 
         samples = self._samples
         if len(samples) < 2:
+            # Need at least 2 points to render a polyline
             return
+
+        # Sanitize NaN/inf — np.clip preserves NaN which QPainter handles unpredictably
+        samples = np.nan_to_num(samples, nan=0.0, posinf=1.0, neginf=-1.0)
 
         pen = QPen(self._LINE_COLOR)
         pen.setWidthF(self._LINE_WIDTH)

@@ -47,7 +47,7 @@ class AnalysisPanel(QWidget):
             result: Analysis result from the audio pipeline.
         """
         self._pitch.set_f0(result.f0)
-        if result.raw_audio is not None:
+        if result.raw_audio is not None:  # Defensive: field is optional in the dataclass
             self._waveform.update_waveform(result.raw_audio)
         if result.is_voiced and len(result.formants) >= 2:
             self._vowel.add_frame(f1=result.formants[0], f2=result.formants[1])
