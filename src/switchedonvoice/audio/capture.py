@@ -10,7 +10,7 @@ import queue
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import sounddevice as sd
@@ -30,6 +30,8 @@ _SAMPLE_RATE_LPC = 16000
 _BUFFER_DURATION_S = 0.2       # 200 ms buffer fed to analysis
 _ANALYSIS_INTERVAL_S = 0.033   # ~30 Hz analysis rate
 _BLOCK_SIZE = 512
+# 44100 Hz / 512-sample blocks ≈ 86 blocks/s. 2-second cap.
+_DEQUE_MAX_BLOCKS = 172
 
 
 @dataclass
@@ -57,7 +59,7 @@ class AudioCapture:
     def __init__(self, device_index: int | None, sample_rate: int = _SAMPLE_RATE_CAPTURE) -> None:
         self._device_index = device_index
         self._sample_rate = sample_rate
-        self._buffer: deque[np.ndarray] = deque()
+        self._buffer: deque[np.ndarray] = deque(maxlen=_DEQUE_MAX_BLOCKS)
         self.results: queue.Queue[AnalysisResult] = queue.Queue(maxsize=10)
         self._stream: sd.InputStream | None = None
         self._analysis_thread: threading.Thread | None = None
@@ -65,6 +67,8 @@ class AudioCapture:
 
     def start(self) -> None:
         """Start the microphone stream and analysis thread."""
+        if self._analysis_thread is not None and self._analysis_thread.is_alive():
+            raise RuntimeError("AudioCapture.start() called while already running")
         self._stop_event.clear()
         self._stream = sd.InputStream(
             device=self._device_index,
@@ -86,8 +90,11 @@ class AudioCapture:
             self._stream.close()
             self._stream = None
         if self._analysis_thread is not None:
-            self._analysis_thread.join(timeout=1.0)
-            self._analysis_thread = None
+            self._analysis_thread.join(timeout=2.0)
+            if self._analysis_thread.is_alive():
+                _log.error("audio_analysis_thread_did_not_stop", timeout_s=2.0)
+            else:
+                self._analysis_thread = None
 
     def _audio_callback(
         self,
@@ -108,36 +115,40 @@ class AudioCapture:
         n_buffer_samples = int(self._sample_rate * _BUFFER_DURATION_S)
         while not self._stop_event.is_set():
             time.sleep(_ANALYSIS_INTERVAL_S)
-            # Drain deque into a contiguous analysis buffer
-            chunks: list[np.ndarray] = []
-            while self._buffer:
-                chunks.append(self._buffer.popleft())
-            if not chunks:
-                continue
-            raw = np.concatenate(chunks)
-            if len(raw) > n_buffer_samples:
-                raw = raw[-n_buffer_samples:]
-
-            voiced = is_voiced(raw)
-            f0 = estimate_f0(raw.astype(np.float64), self._sample_rate) if voiced else None
-
-            # Downsample for LPC
-            lpc_audio = resample_poly(raw, _SAMPLE_RATE_LPC, self._sample_rate).astype(np.float32)
-            formants = estimate_formants(lpc_audio, _SAMPLE_RATE_LPC) if voiced else []
-
-            cpp = compute_cpp(lpc_audio, _SAMPLE_RATE_LPC) if voiced else None
-            freqs, db = compute_spectrum(raw, self._sample_rate)
-
-            result = AnalysisResult(
-                f0=f0,
-                formants=formants,
-                cpp=cpp,
-                is_voiced=voiced,
-                spectrum_freqs=freqs,
-                spectrum_db=db,
-                raw_audio=raw,
-            )
             try:
-                self.results.put_nowait(result)
-            except queue.Full:
-                pass  # Drop frame — UI is behind. This is intentional.
+                # Drain deque into a contiguous analysis buffer
+                chunks: list[np.ndarray] = []
+                while self._buffer:
+                    chunks.append(self._buffer.popleft())
+                if not chunks:
+                    continue
+                raw = np.concatenate(chunks)
+                if len(raw) > n_buffer_samples:
+                    raw = raw[-n_buffer_samples:]
+
+                voiced = is_voiced(raw)
+                f0 = estimate_f0(raw.astype(np.float64), self._sample_rate) if voiced else None
+
+                # Downsample for LPC
+                lpc_audio = resample_poly(raw, _SAMPLE_RATE_LPC, self._sample_rate).astype(np.float32)
+                formants = estimate_formants(lpc_audio, _SAMPLE_RATE_LPC) if voiced else []
+
+                cpp = compute_cpp(lpc_audio, _SAMPLE_RATE_LPC) if voiced else None
+                freqs, db = compute_spectrum(raw, self._sample_rate)
+
+                result = AnalysisResult(
+                    f0=f0,
+                    formants=formants,
+                    cpp=cpp,
+                    is_voiced=voiced,
+                    spectrum_freqs=freqs,
+                    spectrum_db=db,
+                    raw_audio=raw,
+                )
+                try:
+                    self.results.put_nowait(result)
+                except queue.Full:
+                    pass  # Drop frame — UI is behind. This is intentional.
+            except Exception:
+                _log.exception("audio_analysis_loop_error")
+                # Keep the loop alive — do NOT re-raise

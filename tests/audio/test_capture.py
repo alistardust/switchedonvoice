@@ -29,78 +29,56 @@ def test_stop_before_start_is_safe() -> None:
     cap.stop()  # Should not raise
 
 
-def test_analysis_loop_produces_result_for_voiced_frame() -> None:
-    """Analysis thread should emit an AnalysisResult when fed audio data."""
-    import threading
-    from collections import deque
+def test_analysis_loop_runs_and_posts_result() -> None:
+    """Real _analysis_loop should drain buffer and post an AnalysisResult."""
+    from unittest.mock import patch
 
     cap = make_capture()
-
-    # Inject a 200 Hz sine wave (voiced) directly into the deque
     sr = cap._sample_rate
     t = np.linspace(0, 0.2, int(sr * 0.2), dtype=np.float32)
-    voiced_audio = np.sin(2 * np.pi * 200 * t) * 0.5
-    cap._buffer.append(voiced_audio)
+    cap._buffer.append(np.sin(2 * np.pi * 200 * t) * 0.5)
 
-    # Run one cycle of the analysis loop manually
-    cap._stop_event.clear()
-    stop_after_one = threading.Event()
+    call_count = 0
 
-    original_loop = cap._analysis_loop
+    def stop_after_one() -> bool:
+        nonlocal call_count
+        call_count += 1
+        return call_count > 1  # first check: run; second check: stop
 
-    def one_shot_loop() -> None:
-        import time as _time
-        n_buf = int(cap._sample_rate * 0.2)
-        chunks: list[np.ndarray] = []
-        while cap._buffer:
-            chunks.append(cap._buffer.popleft())
-        if chunks:
-            raw = np.concatenate(chunks)
-            if len(raw) > n_buf:
-                raw = raw[-n_buf:]
-            # Trigger the normal analysis path via the capture module's helpers
-            from switchedonvoice.audio.voice_detector import is_voiced as _is_voiced
-            from switchedonvoice.audio.pitch import estimate_f0 as _f0
-            from switchedonvoice.audio.formants import estimate_formants as _formants
-            from switchedonvoice.audio.spectrum import compute_spectrum as _spectrum
-            from switchedonvoice.audio.cpp import compute_cpp as _cpp
-            from scipy.signal import resample_poly
-            voiced = _is_voiced(raw)
-            f0 = _f0(raw.astype(np.float64), cap._sample_rate) if voiced else None
-            lpc = resample_poly(raw, 16000, cap._sample_rate).astype(np.float32)
-            formants = _formants(lpc, 16000) if voiced else []
-            cpp_val = _cpp(lpc, 16000) if voiced else None
-            freqs, db = _spectrum(raw, cap._sample_rate)
-            cap.results.put_nowait(AnalysisResult(
-                f0=f0, formants=formants, cpp=cpp_val,
-                is_voiced=voiced, spectrum_freqs=freqs, spectrum_db=db,
-            ))
-        stop_after_one.set()
+    with patch("switchedonvoice.audio.capture.time.sleep"):
+        cap._stop_event.is_set = stop_after_one  # type: ignore[method-assign]
+        cap._analysis_loop()
 
-    one_shot_loop()
-    assert not cap.results.empty(), "Analysis of voiced frame produced no result"
+    assert cap.results.qsize() == 1
     result = cap.results.get_nowait()
     assert isinstance(result, AnalysisResult)
+    assert result.raw_audio is not None
 
 
-def test_analysis_loop_handles_silence() -> None:
-    """Analysis thread should emit an unvoiced result for silent audio."""
+def test_analysis_loop_survives_dsp_exception() -> None:
+    """If DSP raises inside the loop, the exception is logged and the loop continues."""
+    from unittest.mock import patch
+    import switchedonvoice.audio.capture as capture_mod
+
     cap = make_capture()
-    silence = np.zeros(int(cap._sample_rate * 0.2), dtype=np.float32)
-    cap._buffer.append(silence)
+    sr = cap._sample_rate
+    t = np.linspace(0, 0.2, int(sr * 0.2), dtype=np.float32)
+    cap._buffer.append(np.sin(2 * np.pi * 200 * t) * 0.5)
 
-    from switchedonvoice.audio.voice_detector import is_voiced as _is_voiced
-    from switchedonvoice.audio.spectrum import compute_spectrum as _spectrum
-    raw = silence
-    voiced = _is_voiced(raw)
-    freqs, db = _spectrum(raw, cap._sample_rate)
-    cap.results.put_nowait(AnalysisResult(
-        f0=None, formants=[], cpp=None, is_voiced=voiced,
-        spectrum_freqs=freqs, spectrum_db=db,
-    ))
-    result = cap.results.get_nowait()
-    assert result.is_voiced is False
-    assert result.f0 is None
+    call_count = 0
+
+    def stop_after_one() -> bool:
+        nonlocal call_count
+        call_count += 1
+        return call_count > 1
+
+    with patch("switchedonvoice.audio.capture.time.sleep"), \
+         patch.object(capture_mod, "is_voiced", side_effect=RuntimeError("dsp boom")):
+        cap._stop_event.is_set = stop_after_one  # type: ignore[method-assign]
+        cap._analysis_loop()  # must not raise
+
+    # Loop completed without crashing; queue may be empty (exception before put)
+    # The important thing is no exception propagated
 
 
 def test_start_stop_integration() -> None:
