@@ -19,6 +19,9 @@ dependencies = [
     "structlog>=24",
 ]
 
+[project.scripts]
+switchedonvoice = "switchedonvoice.__main__:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
