@@ -11,8 +11,8 @@
 
 Phase 1 shipped the acoustic engine and UI foundation. Every subsequent phase builds user-facing value on top of that base. Phases are ordered by dependency: data models precede their UIs; content infrastructure precedes content features; arcade infrastructure precedes individual games.
 
-**Total phases:** 22 concrete (Phases 2–23) + 1 deferred future phase (Phase 20)
-**Milestones:** v1.1 (4 phases) → v1.2 (5 phases) → v1.3 (4 phases) → v1.4 (5+1 phases) → v2.0 (3 phases)
+**Total phases:** 26 concrete (Phases 2–27, with Phase 20 and 27 deferred) + VISION.md as north star
+**Milestones:** v1.1 (4 phases) → v1.2 (5 phases) → v1.3 (4 phases) → v1.4 (5+1 phases) → v2.0 (3 phases) → v3.0 (3+1 phases)
 
 ---
 
@@ -68,6 +68,15 @@ Phase 1 shipped the acoustic engine and UI foundation. Every subsequent phase bu
 - [ ] **Phase 21: Singing Mode Foundations** — Speaking/Singing mode selector; separate singing baselines; singing-specific CPP thresholds; fatigue detection
 - [ ] **Phase 22: Melody Following** — Public domain melody library; note target display on pitch timeline; real-time melody scoring
 - [ ] **Phase 23: Singing Exercise Library** — Warm-up scales, arpeggios, interval drills; soprano/mezzo/contralto variants; pitch contour display
+
+---
+
+### Milestone v3.0 — Milestone Comparisons & Virtual Coach
+
+- [ ] **Phase 24: Milestone Recording & Comparison** — Standard passage recordings tagged at milestones; side-by-side waveform overlay; F0/resonance/CPP trend overlay across dates; "hearing yourself become yourself" view
+- [ ] **Phase 25: Virtual Coach Engine** — Rules-based coaching recommendation engine; guidance derived from progress data + curriculum; affirming, non-nagging coaching scripts; no LLM, fully offline
+- [ ] **Phase 26: Coach Avatar Shell** — Avatar rendering infrastructure; animation hook system; TTS or pre-recorded voice integration; character personality scripting (visual design commissioned separately)
+- [ ] **Phase 27: Community & Sharing *(Optional — Privacy-First)*** — Opt-in milestone clip sharing; community board with consent controls; no comparative scoring; deferred until core product is stable
 
 ---
 
@@ -650,7 +659,11 @@ Plans:
 | 21 — Singing Foundations | Mode selector + singing baselines | v2.0 | 0/? | Not started | — |
 | 22 — Melody Following | Note targets + scoring | v2.0 | 0/? | Not started | — |
 | 23 — Singing Exercises | Exercise library + range variants | v2.0 | 0/? | Not started | — |
+| 24 — Milestone Comparison | Side-by-side recording + overlay | v3.0 | 0/? | Not started | — |
+| 25 — Virtual Coach Engine | Rules-based coaching system | v3.0 | 0/? | Not started | — |
+| 26 — Coach Avatar Shell | Animation hooks + character system | v3.0 | 0/? | Not started | — |
+| 27 — Community Sharing | Opt-in milestone sharing | v3.0 | 0/? | Deferred | — |
 
 ---
 
-*Last updated: 2026-05-28*
+*Last updated: 2026-05-29*
