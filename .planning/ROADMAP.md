@@ -107,6 +107,14 @@ Phase 1 shipped the acoustic engine and UI foundation. Every subsequent phase bu
   3. `BookRepository` returns correct passage text for any (book, chapter, passage) address
   4. Reading progress table exists and records are schema-valid
 **Estimated complexity**: M
+**Plans**: 5 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Schema migration v2 (books/chapters/passages/reading_progress) + BookRepository class
+- [ ] 02-02-PLAN.md — CLI converter tool (import_book.py): PG boilerplate strip, chapter detection, passage splitting
+- [ ] 02-03-PLAN.md — Bundled book assets: content/ package + alice, oz, anne .sov-book files
+- [ ] 02-04-PLAN.md — Folder-watcher service: BookWatcherService + QThread off-thread ingestion
+- [ ] 02-05-PLAN.md — Tests: parser, repository, watcher, integration (all 3 bundled books)
 
 ---
 
