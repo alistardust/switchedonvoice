@@ -1,8 +1,8 @@
 # Planning State
 
 **Milestone:** v1.1 — Reading / Narration Mode
-**Phase:** 2 (next to plan/execute)
-**Status:** Ready — requirements and roadmap complete
+**Phase:** 2
+**Status:** Planned — ready to execute
 
 ## What's Done
 - [x] PROJECT.md created with Phase 1 context
@@ -10,13 +10,20 @@
 - [x] REQUIREMENTS.md created — full product vision v1.1–v2.0
 - [x] ROADMAP.md created — 22 concrete phases (Phases 2–23) + 1 deferred
 - [x] config.json created
+- [x] Phase 1 merged to main (HEAD: da20998)
+- [x] `/gsd-discuss-phase 2` — context captured (02-CONTEXT.md)
+- [x] `/gsd-plan-phase 2` — 5 plans created + verified (02-01 through 02-05)
+
+## Phase 2 Plans (5 plans, 3 waves)
+- Wave 1 (parallel): `02-01` Schema + BookRepository · `02-02` CLI converter tool
+- Wave 2 (parallel): `02-03` Bundled assets (Alice/Oz/Anne) · `02-04` Folder-watcher service
+- Wave 3: `02-05` Tests (parser, repo, watcher, integration)
 
 ## What's Next
-- [ ] `/gsd-plan-phase 2` — plan the Content Library & Book Ingestion phase
-- [ ] Merge `feature/phase-1` to `main` before starting Phase 2 branch
+- [ ] `/gsd-execute-phase 2` — implement Phase 2
 
 ## Active Branch
-`feature/phase-1` (pending merge to main)
+`main` (Phase 1 merged; create `feature/phase-2` before executing)
 
 ## Milestone Goals (v1.1)
 - Reading mode: display public domain book text, user reads aloud with live acoustic feedback
@@ -24,4 +31,4 @@
 - Recording history: save sessions to WAV, play back progress over time
 - Content library: Alice in Wonderland, Wizard of Oz, Anne of Green Gables (initial set)
 
-*Last updated: 2026-05-28*
+*Last updated: 2026-05-29*

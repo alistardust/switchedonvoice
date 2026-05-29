@@ -834,17 +834,15 @@ if __name__ == "__main__":
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`reading_progress` NULL uniqueness (A3 above)**
    - What we know: SQLite treats NULL != NULL for UNIQUE constraints — two rows with `(NULL, passage_id=5)` are NOT considered duplicates.
-   - What's unclear: Is this the desired behaviour for Phase 2 (single-profile, no profile_id)? The upsert logic needs to handle "no profile" as a singleton.
-   - Recommendation: Use `INSERT OR REPLACE` / `ON CONFLICT(profile_id, passage_id)` in the application layer rather than relying on the DB constraint for phase 2. Or use a sentinel value (-1) for `profile_id` when NULL until Phase 15.
+   - RESOLVED: Use UPDATE-then-INSERT pattern in `BookRepository.update_progress()` for `profile_id IS NULL` rows. Do not rely on the UNIQUE constraint alone. See Plan 01, Task 2, D-09 note.
 
 2. **`import_book.py` argument design**
    - What we know: The CLI is `python -m switchedonvoice.tools.import_book` per D-05.
-   - What's unclear: Should `--slug` be required, or auto-derived from the PG number / filename?
-   - Recommendation: Make `--slug` required with a sensible error. The three bundled books have known slugs; the tool is for developers, not end users.
+   - RESOLVED: `--slug` is a required argument with a clear error on omission. The three bundled books have known slugs (`alice`, `oz`, `anne`); the tool is for developers, not end users. See Plan 02, Task 1.
 
 ---
 

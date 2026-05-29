@@ -98,12 +98,12 @@ Phase 1 shipped the acoustic engine and UI foundation. Every subsequent phase bu
   2. Write book parser: split Project Gutenberg `.txt` files into chapters, then into ~150-word practisable passages; strip PG boilerplate
   3. Bundle 3 public domain books as package assets: *Alice's Adventures in Wonderland*, *The Wonderful Wizard of Oz*, *Anne of Green Gables*
   4. Implement `BookRepository` service class: `list_books()`, `get_chapters(book_id)`, `get_passages(chapter_id)`, `get_passage(id)`
-  5. Implement folder-watcher service: monitor `~/.switchedonvoice/books/` for new `.txt` drops; auto-ingest on detection
+  5. Implement folder-watcher service: monitor `~/.switchedonvoice/books/` for new `.sov-book` drops; auto-ingest on detection (`.txt` auto-conversion deferred — see D-03)
   6. Migrate reading progress schema: `reading_progress` table (profile_id, passage_id, bookmark_offset, completion_count, last_attempted_at)
   7. Write unit tests for parser edge cases, passage splitting, repository queries, and folder-watcher ingestion
 **Success Criteria**:
   1. All 3 bundled books appear in the app with correct chapter counts and passage boundaries
-  2. User can drop a `.txt` file into `~/.switchedonvoice/books/` and the book appears in the library without restarting
+  2. User can drop a `.sov-book` file into `~/.switchedonvoice/books/` and the book appears in the library without restarting
   3. `BookRepository` returns correct passage text for any (book, chapter, passage) address
   4. Reading progress table exists and records are schema-valid
 **Estimated complexity**: M

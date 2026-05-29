@@ -41,7 +41,9 @@ def _migrate(con: sqlite3.Connection) -> None:
     """Run schema migrations in version order.
 
     Each block is idempotent. To add a migration:
-      1. Add an ``elif version < N`` block here.
+      1. Add an ``if version < N`` block here (not ``elif`` — version is read
+         once at entry, so each block must be an independent ``if`` to ensure
+         fresh databases apply all migrations in one pass).
       2. Bump ``_CURRENT_SCHEMA_VERSION`` above.
     Never remove or reorder existing migration blocks.
     """
