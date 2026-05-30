@@ -3,7 +3,7 @@
 > **Milestone scope:** v1.1 through v2.0+ (post-Phase 1 completion)
 > **Phase 1:** Complete — 25 tasks (Tasks 0–24), 104 tests passing, on `feature/phase-1`
 > **Next phase:** Phase 2 (start of Milestone v1.1)
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-05-30
 
 ---
 
@@ -203,7 +203,7 @@ Plans:
   1. Design DAG skill schema: `skills` (id, name, category, tier, description), `skill_dependencies` (skill_id, requires_skill_id), `user_skill_progress` (profile_id, skill_id, sessions_meeting_criteria, unlocked_at)
   2. Seed 15 initial skills across 5 categories: Pitch (F0 range targeting), Resonance (F1/F2 control), Vocal Quality (CPP), Clarity (consistency), Intonation (variation) — 3 tiers (entry/intermediate/advanced) each
   3. Create `exercises` table; map each existing Phase 1 exercise type and each planned arcade game to one or more skill tiers
-  4. Design XP schema: `xp_events` (profile_id, source_type, source_id, xp_amount, earned_at), `user_xp` (profile_id, total_xp) as a materialised view or computed on read
+  4. Design XP schema: `xp_events` (profile_id, source_type, source_id, xp_amount, earned_at); `user_xp` is computed on read as the sum of xp_events per profile
   5. Define 24 level thresholds with meaningful names and flavour text (e.g., Level 1 "Finding My Voice", Level 12 "Resonance Sculptor", Level 24 "Vocal Alchemist")
   6. Implement `CurriculumService`: `get_unlocked_skills(profile_id)`, `evaluate_skill_unlock(profile_id, skill_id)`, `get_user_xp(profile_id)`, `award_xp(profile_id, source, amount)`, `get_level(xp)`
   7. Write unit tests for DAG traversal, transitive unlock logic, XP accumulation, level boundary computation
@@ -270,7 +270,7 @@ Plans:
   1. Add "Evaluate" button to the Reading tab passage header; entering evaluation mode suppresses all live overlays, colour hints, and acoustic widgets during reading
   2. Implement silent background recording of the full evaluation run (always on for evaluations, regardless of recording preference)
   3. Build `ReportCardDialog`: five scored dimensions — Pitch Accuracy (% time within target F0 range), Resonance Score (F1/F2 centroid proximity), CPP Health (mean CPP vs. threshold), Pacing (syllables per minute vs. natural range), Consistency (F0 standard deviation) — each with a plain-language sentence
-  4. Store evaluation results in `evaluations` table (profile_id, passage_id, timestamp, f0_accuracy, resonance_score, cpp_score, pacing_score, consistency_score)
+  4. Store evaluation results in `evaluations` table (profile_id, passage_slug TEXT FK, timestamp, f0_accuracy, resonance_score, cpp_score, pacing_score, consistency_score)
   5. Build evaluation trend graph in Progress tab: line chart per dimension, one point per evaluation of the same passage, ordered by date (use pyqtgraph)
   6. Wire XP award for evaluation completion via `CurriculumService.award_xp()` (scaled by average score)
   7. Write tests for each scoring dimension computation, evaluation storage round-trip, and trend graph data pipeline
@@ -294,7 +294,7 @@ Plans:
   2. Build recommendation rule table: map each weak dimension → candidate skill tree nodes and (later) arcade game IDs; store as structured config (JSON/TOML)
   3. Add "Suggested Next" card panel to the home screen: renders 1–3 suggestion cards with icon, title, and deep-link to the recommended content
   4. Implement "Just let me choose" dismiss button: hides the panel for the current session without resetting the weakness detection data
-  5. Persist last recommendation batch in settings (profile-scoped) to avoid serving identical suggestions on consecutive app opens
+  5. Persist last recommendation batch in profile-scoped SQLite/app storage (not shared machine settings) to avoid serving identical suggestions on consecutive app opens
   6. Write tests for weakness detection edge cases (no history, all dimensions equal, single-session history), rule mapping coverage, and suggestion deduplication
 **Success Criteria**:
   1. After two sessions where pitch scores are lower than resonance, the home screen suggests a pitch-focused exercise or arcade game
@@ -398,8 +398,8 @@ Plans:
 
 ### Phase 15: Multi-Profile Support
 
-**Goal**: Multiple people can use the app on one machine (or a coach and student can coexist), each with a fully isolated history and settings.
-**Depends on**: Phase 1 (all existing data tables)
+**Goal**: Multiple people can use the app on one machine (or a coach and student can coexist), each with fully isolated history and user-scoped training data while machine settings remain shared.
+**Depends on**: Phase 14 (all Phases 2–14 data tables are already present)
 **Requirements**: REQ-I01
 **Tasks**:
   1. Add `profiles` table (id, name, profile_type [student/coach], created_at, avatar_colour); extend all user-scoped tables with `profile_id` FK: sessions, reading_progress, arcade_scores, xp_events, user_skill_progress, daily_goals, evaluations
@@ -421,13 +421,13 @@ Plans:
 
 **Goal**: A coach can build a custom structured curriculum on their machine and hand it to a student as a single importable file.
 **Depends on**: Phase 15 (coach profile type), Phase 6 (curriculum schema)
-**Requirements**: REQ-I02
+**Requirements**: REQ-I02, REQ-I04
 **Tasks**:
   1. Build `CurriculumBuilderWindow` (accessible from coach profile settings): sidebar with exercise/passage/instruction-block palette; main area is an ordered drag-and-drop list
   2. Implement custom passage creation: plain-text editor pane (paste or type); passages created here are stored in `custom_passages` table and assignable within the curriculum
   3. Implement exercise target definition UI: for each curriculum item, optionally attach a measurable goal (e.g., "achieve avg F0 ≥ 180 Hz", "CPP ≥ 0.8 for 3 consecutive sessions") with operator + value fields
   4. Define `.sov-curriculum` package format: ZIP container with `manifest.json` (metadata, item order, targets) + bundled custom passage `.txt` files
-  5. Implement export flow: "Save as .sov-curriculum" button → file-save dialog; implement import flow: "Import Curriculum" from file → validate manifest schema → load into DB under coach's profile
+  5. Implement export flow: "Save as .sov-curriculum" button → file-save dialog; implement import flow: "Import Curriculum" from file → validate manifest schema → load into DB under the importing profile (including student profiles)
   6. Write tests for curriculum serialisation round-trip, target evaluation against session data, import validation (malformed manifest rejection), and drag-drop item ordering persistence
 **Success Criteria**:
   1. Coach can build a 5-item curriculum (mix of built-in passages and custom text) via drag-drop in under 2 minutes
@@ -489,7 +489,7 @@ Plans:
 **Depends on**: Phase 15 (coach profile), Phase 17 (homework), Phase 18 (session data)
 **Requirements**: REQ-I06
 **Tasks**:
-  1. Build coach analytics dashboard: accessible from the coach profile's Progress tab; student selector dropdown shows all profiles on this machine
+  1. Build coach analytics dashboard: accessible from the coach profile's Progress tab; student selector dropdown shows all profiles on this machine; summary includes curriculum completion rate
   2. Implement F0 trend chart per student: weekly mean F0 over a rolling 8-week window, rendered as a line chart (pyqtgraph); overlaid with target range band
   3. Implement resonance improvement chart: F1/F2 centroid (Euclidean distance from feminine reference point) per week over 8 weeks
   4. Build "First vs. Now" passage comparison panel: side-by-side rendering of oldest and most recent evaluation for any passage — waveform thumbnails, score table, delta badges (↑/↓/→)
@@ -497,7 +497,7 @@ Plans:
   6. Implement full student progress PDF export: multi-page document — cover summary, F0 trend chart, resonance chart, first-vs-now comparison for top 3 passages, session list
   7. Write tests for analytics aggregation queries (weekly averages, correct date bucketing), PDF multi-page smoke test, and session notes CRUD
 **Success Criteria**:
-  1. Coach switching to student "Alex" sees Alex's F0 trend chart populated with weekly averages for each week Alex has trained
+  1. Coach switching to student "Alex" sees Alex's F0 trend chart populated with weekly averages for each week Alex has trained, plus curriculum completion summary
   2. "First vs. Now" panel for a passage shows visibly different scores if the student has improved, with correct delta badges
   3. Session note entered by coach appears in the session history view under the correct session entry
   4. Exported student progress PDF contains all expected sections and is longer than 2 pages for a student with 4+ weeks of data
@@ -530,7 +530,7 @@ Plans:
 **Depends on**: Phase 1 (acoustic pipeline), Phase 6 (baseline/settings schema)
 **Requirements**: REQ-S01, REQ-S04
 **Tasks**:
-  1. Add Speaking / Singing mode selector toggle to the Analysis tab header (persistent per profile in settings)
+  1. Add Speaking / Singing mode selector toggle to the Analysis tab header (persistent per profile via profile-owned storage)
   2. Implement separate singing acoustic baseline: distinct F0 reference range (e.g., soprano 260–1050 Hz, mezzo 220–880 Hz) configurable in onboarding re-run or Settings
   3. Implement singing-specific CPP thresholds: singing CPP warning fires at a different (lower) threshold than speech CPP, reflecting different phonation effort norms
   4. Build fatigue detector: compute a rolling 5-minute pitch accuracy trend; alert when accuracy degrades >15 % from session start ("Your pitch control is dropping — consider a rest")
@@ -613,7 +613,7 @@ Plans:
 | REQ-I01 | Multi-profile support | Phase 15 |
 | REQ-I02 | Curriculum authoring | Phase 16 |
 | REQ-I03 | Homework assignment | Phase 17 |
-| REQ-I04 | Session reports (offline/file-based) | Phase 18 |
+| REQ-I04 | Offline file/package exchange (curriculum + session reports) | Phase 16, Phase 18 |
 | REQ-I05 | Real-time remote coaching (future) | Phase 20 *(deferred)* |
 | REQ-I06 | Coach analytics view | Phase 19 |
 | REQ-S01 | Singing vs. speaking mode selector | Phase 21 |
@@ -637,33 +637,33 @@ Plans:
 | Phase | Goal | Milestone | Plans Complete | Status | Completed |
 |-------|------|-----------|----------------|--------|-----------|
 | 1 — Foundation | DSP pipeline + UI + storage | v1.0 | 25/25 | ✅ Complete | 2026-05-28 |
-| 2 — Content Library | Books ingested, progress schema | v1.1 | 0/? | Not started | — |
-| 3 — Reading Mode UI | Passage display, navigation, bookmark | v1.1 | 0/? | Not started | — |
-| 4 — Acoustic Overlay | Live feedback + session summary | v1.1 | 0/? | Not started | — |
-| 5 — Recording History | Recording pipeline + playback | v1.1 | 0/? | Not started | — |
-| 6 — Curriculum Schema | Skill DAG + XP tables + levels | v1.2 | 0/? | Not started | — |
-| 7 — Skill Tree UI | Visual tree + XP display + level-up | v1.2 | 0/? | Not started | — |
-| 8 — Daily Goals | Home widget + adaptive streaks | v1.2 | 0/? | Not started | — |
-| 9 — Evaluation Mode | Report card + trend graphs | v1.2 | 0/? | Not started | — |
-| 10 — Recommendations | Weakness detection + suggestions | v1.2 | 0/? | Not started | — |
-| 11 — Arcade + Pitch Game | Arcade tab + Pitch Targeting | v1.3 | 0/? | Not started | — |
-| 12 — Resonance + Vowel | Resonance Drill + Vowel Shaping | v1.3 | 0/? | Not started | — |
-| 13 — Siren + Rhythm | Siren Glide + Rhythm & Cadence | v1.3 | 0/? | Not started | — |
-| 14 — Arcade History | Personal bests + sparklines | v1.3 | 0/? | Not started | — |
-| 15 — Multi-Profile | Profile switcher + data isolation | v1.4 | 0/? | Not started | — |
-| 16 — Curriculum Authoring | Coach curriculum builder + export | v1.4 | 0/? | Not started | — |
-| 17 — Homework | Assignment flow + completion tracking | v1.4 | 0/? | Not started | — |
-| 18 — Session Export | HTML/PDF reports + .sov-session | v1.4 | 0/? | Not started | — |
-| 19 — Coach Analytics | Per-student dashboards + PDF export | v1.4 | 0/? | Not started | — |
+| 2 — Content Library | Books ingested, progress schema | v1.1 | 5/5 | Not started | — |
+| 3 — Reading Mode UI | Passage display, navigation, bookmark | v1.1 | 1/1 | Not started | — |
+| 4 — Acoustic Overlay | Live feedback + session summary | v1.1 | 1/1 | Not started | — |
+| 5 — Recording History | Recording pipeline + playback | v1.1 | 1/1 | Not started | — |
+| 6 — Curriculum Schema | Skill DAG + XP tables + levels | v1.2 | 1/1 | Not started | — |
+| 7 — Skill Tree UI | Visual tree + XP display + level-up | v1.2 | 1/1 | Not started | — |
+| 8 — Daily Goals | Home widget + adaptive streaks | v1.2 | 1/1 | Not started | — |
+| 9 — Evaluation Mode | Report card + trend graphs | v1.2 | 1/1 | Not started | — |
+| 10 — Recommendations | Weakness detection + suggestions | v1.2 | 1/1 | Not started | — |
+| 11 — Arcade + Pitch Game | Arcade tab + Pitch Targeting | v1.3 | 1/1 | Not started | — |
+| 12 — Resonance + Vowel | Resonance Drill + Vowel Shaping | v1.3 | 1/1 | Not started | — |
+| 13 — Siren + Rhythm | Siren Glide + Rhythm & Cadence | v1.3 | 1/1 | Not started | — |
+| 14 — Arcade History | Personal bests + sparklines | v1.3 | 1/1 | Not started | — |
+| 15 — Multi-Profile | Profile switcher + data isolation | v1.4 | 1/1 | Planned | — |
+| 16 — Curriculum Authoring | Coach curriculum builder + export | v1.4 | 1/1 | Planned | — |
+| 17 — Homework | Assignment flow + completion tracking | v1.4 | 1/1 | Planned | — |
+| 18 — Session Export | HTML/PDF reports + .sov-session | v1.4 | 1/1 | Planned | — |
+| 19 — Coach Analytics | Per-student dashboards + PDF export | v1.4 | 1/1 | Planned | — |
 | 20 — Remote Coaching | *Deferred — requires backend* | v1.4 | N/A | Deferred | — |
-| 21 — Singing Foundations | Mode selector + singing baselines | v2.0 | 0/? | Not started | — |
-| 22 — Melody Following | Note targets + scoring | v2.0 | 0/? | Not started | — |
-| 23 — Singing Exercises | Exercise library + range variants | v2.0 | 0/? | Not started | — |
-| 24 — Milestone Comparison | Side-by-side recording + overlay | v3.0 | 0/? | Not started | — |
-| 25 — Virtual Coach Engine | Rules-based coaching system | v3.0 | 0/? | Not started | — |
-| 26 — Coach Avatar Shell | Animation hooks + character system | v3.0 | 0/? | Not started | — |
+| 21 — Singing Foundations | Mode selector + singing baselines | v2.0 | 1/1 | Planned | — |
+| 22 — Melody Following | Note targets + scoring | v2.0 | 1/1 | Planned | — |
+| 23 — Singing Exercises | Exercise library + range variants | v2.0 | 1/1 | Planned | — |
+| 24 — Milestone Comparison | Side-by-side recording + overlay | v3.0 | 1/1 | Planned | — |
+| 25 — Virtual Coach Engine | Rules-based coaching system | v3.0 | 1/1 | Planned | — |
+| 26 — Coach Avatar Shell | Animation hooks + character system | v3.0 | 1/1 | Planned | — |
 | 27 — Community Sharing | Opt-in milestone sharing | v3.0 | 0/? | Deferred | — |
 
 ---
 
-*Last updated: 2026-05-29*
+*Last updated: 2026-05-30*

@@ -141,7 +141,8 @@ Inspired by Rocksmith (instrument-teacher game), Duolingo (structured habit with
 
 #### REQ-I01: Multi-Profile Support
 - App supports multiple named local profiles (student accounts on one machine)
-- Each profile has independent: session history, progress, recordings, curriculum state, settings
+- Each profile has independent: session history, progress, recordings, curriculum state, and other user-scoped training data
+- Machine/device settings remain shared per installation unless a later phase explicitly moves a preference into profile-owned storage
 - Profile switcher on the home screen (no passwords required — this is not a security boundary)
 - Coach profile type: elevated permissions to create/edit curricula and view student data
 
