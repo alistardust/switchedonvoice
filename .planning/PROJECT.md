@@ -45,11 +45,13 @@ A trans person practicing voice training sees accurate real-time acoustic feedba
 - **Real-time voice modification/transformation** — Training tool, not voice changer
 - **aubio library** — GPL-licensed, excluded permanently; pyworld (BSD) is the F0 engine
 
-## Current Milestone: v1.1 — TBD
+## Current Milestone: v1.1 — Reading / Narration Mode
 
-**Goal:** TBD — defining now
+**Goal:** Give users compelling practice content and a way to hear their progress over time.
 
-**Target features:** TBD
+**Target features:** Content library (3 public domain books), Reading Mode UI with Kindle-style bookmarks, live acoustic overlay while reading, optional WAV recording with playback history.
+
+**Phases:** 2–5 | **Tracking:** https://github.com/alistardust/switchedonvoice/milestone/2
 
 ## Context
 
