@@ -71,7 +71,7 @@ A `.sov-book` file is a single JSON object. Filename convention: `<book-slug>.so
 | `title` | string | ✅ | Display title of the book. |
 | `author` | string | ✅ | Author's name as it should appear in the UI. |
 | `language` | string | ✅ | BCP 47 language tag (e.g. `"en"`). |
-| `source` | string | ✅ | Attribution URL (Project Gutenberg permalink preferred). May be empty string `""` if no URL is available, but must be present. |
+| `source` | string | ✅ | Attribution text or URL. For Project Gutenberg books, use the canonical URL (e.g., `"https://www.gutenberg.org/ebooks/11"`). For books without a URL, use descriptive attribution text (e.g., `"Traditional"`). May be empty string `""` if no attribution is available, but the field must be present. |
 | `licence` | string | ✅ | Human-readable licence statement. For PG texts: `"Public domain"`. |
 | `version` | string | ✅ | Content version string (e.g. `"1.0"`). Increment when passage text is edited. Not the same as `schema_version`. |
 | `chapters` | array | ✅ | Ordered array of chapter objects. Must contain at least 1 chapter. |
@@ -109,8 +109,8 @@ Passage slugs are the **stable identity** for all downstream references: bookmar
 ```
 
 - `<book-slug>`: the top-level `slug` field of the book
-- `ch<N>`: chapter number, zero-padded to 2 digits (e.g., `ch01`, `ch12`)
-- `p<N>`: passage position, zero-padded to 3 digits (e.g., `p001`, `p042`)
+- `ch<N>`: chapter number, formatted with `{n:02d}` — minimum 2 digits, no truncation. Chapter 1 → `ch01`; chapter 12 → `ch12`; chapter 100 → `ch100`.
+- `p<N>`: passage position, formatted with `{n:03d}` — minimum 3 digits, no truncation. Position 1 → `p001`; position 42 → `p042`; position 1000 → `p1000`.
 
 **Examples:**
 - `alice-wonderland-ch01-p001` — Alice, chapter 1, passage 1
@@ -158,16 +158,27 @@ These rules govern how the `import_book` converter produces passages from chapte
 `BookRepository.ingest(data)` uses the top-level `slug` as its deduplication key:
 
 - If `book_exists(slug)` returns `True`, the ingest is **skipped silently** (no update, no error).
-- To replace a book's content, the book must first be deleted from the DB, then re-imported.
+- To replace a book's content, call `BookRepository.delete_book(slug)` first, then re-import.
 - Future tooling (Phase 16+) may provide an explicit `update` operation.
 
 The folder-watcher service (`BookWatcherService`) applies the same rule: dropping the same `.sov-book` file twice is a no-op.
+
+### Delete Workflow and Cascade Warning
+
+`BookRepository.delete_book(slug)` deletes the `books` row. Because `chapters` and `passages` use `ON DELETE CASCADE`, all chapters and passages for the book are also deleted. Because `reading_progress` references `passages.slug` (TEXT FK with `ON DELETE CASCADE`), all reading progress for those passages is also deleted.
+
+**This is intentional and irreversible.** The application must:
+1. Show a confirmation dialog before deletion (Phase 3 UI).
+2. Warn the user that progress records for this book will be deleted.
+3. Consider offering an export before deletion (Phase 18+).
+
+Recordings (Phase 5+) are **not** auto-deleted by the cascade (they are files, not DB rows). Phase 5 must handle orphaned recordings on book deletion.
 
 ---
 
 ## Validation Rules
 
-A `.sov-book` file is **valid** if and only if:
+A `.sov-book` file is **valid** if and only if all of the following hold:
 
 1. It is valid UTF-8 encoded JSON.
 2. All required fields are present at every level (book, chapter, passage).
@@ -179,8 +190,13 @@ A `.sov-book` file is **valid** if and only if:
 8. Passage `position` values within each chapter are unique and contiguous starting at 1.
 9. `difficulty` is one of `"easy"`, `"medium"`, `"hard"`.
 10. `word_count` equals `len(passage["text"].split())`.
+11. `title`, `author`, and `language` are non-empty strings (whitespace-only strings are rejected).
+12. `passage.text` is a non-empty string containing no embedded newline characters (`\n`, `\r`).
+13. `phonemic_density` and `recommended_f0_target` are `null` in schema version 1.
 
-The `import_book` converter guarantees all of the above. The `BookRepository.ingest()` method validates rules 1–6 and raises `ValueError` on violation; rules 7–10 are asserted in the test suite.
+**Runtime vs. converter enforcement:**
+
+The `import_book` converter guarantees all rules. `BookRepository.ingest()` validates rules 1–9, 11–13 at runtime and raises `ValueError` on any violation; rules 10 (word count parity) is verified by the test suite rather than at runtime ingest (computing `len(text.split())` for every passage at ingest is acceptable cost, but the check can be deferred to converter output validation). Runtime validation is required for user-dropped files (folder-watcher path) where the converter may not have been used.
 
 ---
 
@@ -213,13 +229,30 @@ The `.sov-book` structure maps to the Phase 2 SQLite schema as follows:
 
 ## Impact on Phase 2 Plans
 
-This spec requires two updates to the existing Phase 2 plans:
+This spec requires updates to four Phase 2 plan files:
 
-1. **02-01-PLAN.md (schema):** `passages` table gains a `slug TEXT UNIQUE NOT NULL` column. `reading_progress` references `passage_slug TEXT NOT NULL` (in addition to or instead of `passage_id INTEGER`). The schema version bumps to 2.
+### 02-01-PLAN.md (schema + BookRepository)
+- `passages` table gains `slug TEXT UNIQUE NOT NULL` column (before `position`).
+- `reading_progress` uses `passage_slug TEXT NOT NULL REFERENCES passages(slug) ON DELETE CASCADE` instead of `passage_id INTEGER NOT NULL REFERENCES passages(id)`. The UNIQUE constraint becomes `UNIQUE(profile_id, passage_slug)`. The index becomes `idx_progress_passage ON reading_progress(passage_slug)`.
+- `Passage` dataclass gains `slug: str` field.
+- `BookRepository` gains `get_passage_by_slug(slug: str) → Passage` method; `get_passage(passage_id)` remains for numeric lookups but downstream code (Phase 3+) should prefer `get_passage_by_slug`.
+- `update_progress()` parameter changes from `passage_id: int` to `passage_slug: str`.
+- `BookRepository.delete_book(slug: str) → None` method added (deletes book row; cascades to chapters/passages/reading_progress).
+- Test `test_v2_tables_have_expected_columns` must check that `slug` column is present in `passages`.
 
-2. **02-02-PLAN.md (converter):** `build_sov_book()` generates passage slugs using `f"{book_slug}-ch{chapter_number:02d}-p{position:03d}"` before writing the JSON. This is ~3 lines of code.
+### 02-02-PLAN.md (converter)
+- `build_sov_book()` signature gains `slug: str` as its first required parameter (the book slug).
+- `build_sov_book()` generates passage slugs: `f"{slug}-ch{chapter_number:02d}-p{position:03d}"`.
+- Output dict includes `"schema_version": 1` as the first key.
+- Each passage dict includes `"slug": passage_slug`.
+- Interfaces section must add `slug` to the passage required fields list.
+- Acceptance criteria: `build_sov_book` returns dict with `schema_version` key; each passage has `slug` key.
 
-All other plan steps are unaffected.
+### 02-03-PLAN.md (bundled book assets)
+- `must_haves.truths`: add "Every passage in every bundled book has a `slug` field matching `<book-slug>-ch<NN>-p<NNN>`" and "`schema_version` equals 1 in all bundled books".
+
+### 02-05-PLAN.md (tests)
+- Minimal valid `.sov-book` fixture: add `"schema_version": 1` at top level; add `"slug": "test-book-ch01-p001"` to the passage object.
 
 ---
 

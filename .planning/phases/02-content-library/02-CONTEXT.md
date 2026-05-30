@@ -34,9 +34,14 @@ That comes in Phases 3 and 4.
 - Book-level: `title`, `author`, `language`, `source` (e.g. Project Gutenberg),
   `licence` (public domain note), `version`
 - Chapter-level: `number`, `title`, `passages[]`
-- Passage-level: `id`, `text`, `word_count`, `difficulty` (easy/medium/hard),
+- Passage-level: **`slug`** (stable text identifier, format `<book-slug>-ch<NN>-p<NNN>`, see spec), `position`, `text`, `word_count`, `difficulty` (easy/medium/hard),
   `phonemic_density` (optional float — fraction of phonemically rich vowels),
   `recommended_f0_target` (optional float Hz — editorial annotation for Phase 4 scoring)
+
+> **Note:** The original context used `id` as the passage identity. This was superseded by
+> `docs/superpowers/specs/2026-05-29-sov-book-format-design.md`. The stable identity is
+> `slug TEXT`, not `id INTEGER`. All downstream references (reading_progress FK, bookmark
+> persistence, recordings) use `passage_slug TEXT`, not `passage_id INTEGER`.
 
 ### Passage Splitting
 - **D-04:** Sentence-aware splitting at ~150 words — never cut mid-sentence.
